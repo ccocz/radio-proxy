@@ -1,18 +1,17 @@
-//
-// Created by resul on 21.05.2020.
-//
-
-#include <boost/program_options.hpp>
-#include <iostream>
-#include <csignal>
-#include <netdb.h>
-#include <poll.h>
-#include "err.h"
+#include "radio-proxy.h"
+#include "ICYResponse.h"
+#include "ClientResponse.h"
+#include "DirectResponse.h"
 
 namespace po = boost::program_options;
 
+int tcp_fd;
+
 void signal_handler(int signum) {
     std::cerr << "caught signal: " << signum << std::endl;
+    if (close(tcp_fd) == -1) {
+        syserr("close");
+    }
     exit(1);
 }
 
@@ -23,7 +22,10 @@ po::variables_map validate_args(int argc, char **argv) {
             ("resource,r", po::value<std::string>()->required(), "Resource")
             ("port,p", po::value<uint16_t>()->required(), "Port")
             ("meta,m", po::value<std::string>()->default_value("no"), "Meta-data")
-            ("timeout,t", po::value<int>()->default_value(5), "Wait timeout");
+            ("timeout,t", po::value<int>()->default_value(5), "Wait timeout")
+            ("Port,P", po::value<uint16_t>()->default_value(0), "multicast port")
+            ("address,B", po::value<std::string>()->default_value("n/a"), "group address")
+            ("timeoutclient,T", po::value<int>()->default_value(5), "timeout client");
     po::variables_map vm;
     try {
         po::store(po::parse_command_line(argc, argv, description), vm);
@@ -68,16 +70,19 @@ int initialize_tcp(std::string host, std::string port) {
 }
 
 std::string icy_request(const po::variables_map &args) {
-    std::vector<std::string> headers;
-    headers.push_back("GET " + args["resource"].as<std::string>() + " HTTP/1.0");
+    /* create icy-request */
+    std::vector<std::string> req_headers;
+    req_headers.push_back("GET " + args["resource"].as<std::string>() + " HTTP/1.0");
     if (args["meta"].as<std::string>() == "yes") {
-        headers.emplace_back("Icy-MetaData:1");
+        req_headers.emplace_back("Icy-MetaData:1");
     }
-    headers.emplace_back("Host: " + args["host"].as<std::string>());
-    headers.emplace_back("Connection: close");
+    req_headers.emplace_back("Host: " + args["host"].as<std::string>());
+    req_headers.emplace_back("Connection: close");
+    /* finish */
     std::string end("\r\n");
     std::string request;
-    for (std::string &header : headers) {
+    /* add all headers to request */
+    for (std::string &header : req_headers) {
         request += header;
         request += end;
     }
@@ -85,8 +90,14 @@ std::string icy_request(const po::variables_map &args) {
     return request;
 }
 
-std::vector<std::string> get_headers(int tcp_fd) {
-    std::vector<std::string> headers;
+void normalize_header(std::string &header) {
+    for (char &x : header) {
+        x = (char)tolower(x);
+    }
+}
+
+void get_headers(std::vector<std::string> &headers) {
+    /* get all headers from response and store them*/
     std::string header;
     int read_size;
     char ch;
@@ -105,122 +116,62 @@ std::vector<std::string> get_headers(int tcp_fd) {
             break;
         }
     }
-    return headers;
-}
-
-void parse_raw_response(int tcp_fd) {
-    std::vector<std::string> headers = get_headers(tcp_fd);
-    if (headers[0].find("200") == std::string::npos) {
-        std::cerr << "not ok response: " << headers[0] << std::endl;
-        exit(1);
-    }
-    int read_size;
-    char ch;
-    while ((read_size = read(tcp_fd, &ch, 1))) {
-        if (read_size < 0) {
-            syserr("reading from socket");
-        }
-        std::cout << ch;
+    /* normalize to be able to compare with no doubt */
+    for (std::string &_header : headers) {
+        normalize_header(_header);
     }
 }
 
-int meta_interval(std::vector<std::string> &headers) {
-    /* search for icy-metaint header among headers */
-    std::string interval;
-    for (std::string &header : headers) {
-        if (header.find("icy-metaint") == std::string::npos) {
-            continue;
-        }
-        interval = header;
-        break;
-    }
-    /* parse size from icy-metaint header */
-    std::string token = interval.substr(interval.find(':') + 1, interval.size() - 1);
-    std::stringstream stream(token);
-    int size;
-    if (!(stream >> size)) {
-        std::cerr << "invalid metadata size" << std::endl;
-    }
-    return size;
-}
-
-void meta_data_block(int tcp_fd) {
-    char temp = 0;
-    int read_size;
-    read_size = read(tcp_fd, &temp, 1);
-    if (read_size < 0) {
-        syserr("reading from socket");
-    } else if (read_size == 0) {
-        std::cerr << "meta-data block size not found on socket" << std::endl;
-        exit(1);
-    }
-    int byte_count = 0;
-    char ch;
-    int metadata_length = temp * 16;
-    while (byte_count != metadata_length && (read_size = read(tcp_fd, &ch, 1))) {
-        if (read_size < 0) {
-            syserr("reading from the socket");
-        }
-        std::cerr << ch;
-        byte_count++;
-    }
-    if (byte_count != metadata_length) {
-        std::cerr << "metadata is not sent completely";
+void check_ok_response(std::string &first_header) {
+    if (first_header.find("200") == std::string::npos) {
+        std::cerr << "not ok response: " << first_header << std::endl;
         exit(1);
     }
 }
 
-void parse_response_meta(int tcp_fd) {
-    std::vector<std::string> headers = get_headers(tcp_fd);
-    int metadata_interval = meta_interval(headers);
-    int read_size;
-    int byte_count = 0;
-    char ch;
-    while ((read_size = read(tcp_fd, &ch, 1))) {
-        if (read_size < 0) {
-            syserr("reading from tcp socket");
-        }
-        std::cout << ch;
-        byte_count++;
-        if (byte_count == metadata_interval) {
-            meta_data_block(tcp_fd);
-            byte_count = 0;
-        }
-    }
-}
-
-void wait_response(int tcp_fd, int timeout, const std::string &meta) {
-    /* create poll to wait for 5 seconds */
-    struct pollfd pfds[1];
-    pfds[0].fd = tcp_fd;
-    pfds[0].events = POLLIN;
-    int num_events = poll(pfds, 1, timeout * 1000);
-    if (num_events == 0) {
-        std::cout << "timeout server stopped working" << std::endl;
+void wait_response(po::variables_map &args) {
+    /* get response headers and validate 200*/
+    std::vector<std::string> headers;
+    get_headers(headers);
+    check_ok_response(headers[0]);
+    /* check if should send to clients */
+    ICYResponse *icyResponse;
+    if (!args["Port"].defaulted()) {
+        icyResponse = new ClientResponse(tcp_fd, headers, args["meta"].as<std::string>() == "yes");
     } else {
-        if (pfds[0].revents & POLLIN) {
-            if (meta == "no") {
-                parse_raw_response(tcp_fd);
-            } else {
-                parse_response_meta(tcp_fd);
-            }
-        } else {
-            std::cout << "unexpected event occured: " << pfds[0].revents << std::endl;
-        }
+        icyResponse = new DirectResponse(tcp_fd, headers, args["meta"].as<std::string>() == "yes");
+    }
+    icyResponse->send_response();
+}
+
+void check_args(po::variables_map &args) {
+    if (!args["timeout"].as<int>()) {
+        std::cerr << "timeout can't be zero" << std::endl;
+        exit(1);
     }
 }
 
 int main(int argc, char **argv) {
+    /* set signal handler */
     std::signal(SIGINT, signal_handler);
+    /* parse and validate program arguments */
     po::variables_map args = validate_args(argc, argv);
-    int tcp_fd = initialize_tcp(args["host"].as<std::string>(),
+    check_args(args);
+    /* open tcp socket */
+    tcp_fd = initialize_tcp(args["host"].as<std::string>(),
             std::to_string(args["port"].as<uint16_t>()));
+    /* create request and send it to the server */
     std::string request = icy_request(args);
     if (write(tcp_fd, &request[0], request.length()) < 0) {
         syserr("writing to socket");
     }
-    while (true) {
-        wait_response(tcp_fd, args["timeout"].as<int>(), args["meta"].as<std::string>());
+    /* set timeout to read from socket */
+    struct timeval tv{};
+    tv.tv_sec = args["timeout"].as<int>();
+    if (setsockopt(tcp_fd, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *)&tv, sizeof(struct timeval)) < 0) {
+        syserr("timeout option socket");
     }
+    /* proceed to getting response */
+    wait_response(args);
     return 0;
 }

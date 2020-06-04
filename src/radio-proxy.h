@@ -2,7 +2,14 @@
 // Created by resul on 03.06.2020.
 //
 
-#ifndef RADIO_PROXY_RADIO_PROXY_H
-#define RADIO_PROXY_RADIO_PROXY_H
+#ifndef RADIO_PROXY_H
+#define RADIO_PROXY_H
 
-#endif //RADIO_PROXY_RADIO_PROXY_H
+#include <boost/program_options.hpp>
+#include <iostream>
+#include <csignal>
+#include <netdb.h>
+#include <poll.h>
+#include "err.h"
+
+#endif // RADIO_PROXY_H
