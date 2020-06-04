@@ -16,7 +16,9 @@ protected:
     std::vector<std::string> headers;
     po::variables_map args;
     bool meta{};
+    bool meta_send{};
     std::string data;
+    std::string meta_data;
     int tcp_fd{};
     int metadata_interval{};
 

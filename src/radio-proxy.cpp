@@ -20,10 +20,10 @@ po::variables_map validate_args(int argc, char **argv) {
     description.add_options()
             ("host,h", po::value<std::string>()->required(), "Host")
             ("resource,r", po::value<std::string>()->required(), "Resource")
-            ("port,p", po::value<uint16_t>()->required(), "Port")
+            ("port,p", po::value<in_port_t>()->required(), "Port")
             ("meta,m", po::value<std::string>()->default_value("no"), "Meta-data")
             ("timeout,t", po::value<int>()->default_value(5), "Wait timeout")
-            ("Port,P", po::value<uint16_t>()->default_value(0), "multicast port")
+            ("Port,P", po::value<in_port_t>()->default_value(0), "multicast port")
             ("address,B", po::value<std::string>()->default_value("n/a"), "group address")
             ("timeoutclient,T", po::value<int>()->default_value(5), "timeout client");
     po::variables_map vm;
@@ -145,7 +145,7 @@ void wait_response(po::variables_map &args) {
 }
 
 void check_args(po::variables_map &args) {
-    if (!args["timeout"].as<int>()) {
+    if (args["timeout"].as<int>() <= 0) {
         std::cerr << "timeout can't be zero" << std::endl;
         exit(1);
     }

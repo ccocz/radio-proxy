@@ -2,6 +2,7 @@
 #define RADIO_PROXY_CLIENTRESPONSE_H
 
 #include "ICYResponse.h"
+#include "UDPServer.h"
 
 class ClientResponse : public ICYResponse{
 private:
