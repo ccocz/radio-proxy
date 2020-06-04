@@ -137,9 +137,9 @@ void wait_response(po::variables_map &args) {
     /* check if should send to clients */
     ICYResponse *icyResponse;
     if (!args["Port"].defaulted()) {
-        icyResponse = new ClientResponse(tcp_fd, headers, args["meta"].as<std::string>() == "yes");
+        icyResponse = new ClientResponse(tcp_fd, headers, args);
     } else {
-        icyResponse = new DirectResponse(tcp_fd, headers, args["meta"].as<std::string>() == "yes");
+        icyResponse = new DirectResponse(tcp_fd, headers, args);
     }
     icyResponse->send_response();
 }
@@ -159,7 +159,7 @@ int main(int argc, char **argv) {
     check_args(args);
     /* open tcp socket */
     tcp_fd = initialize_tcp(args["host"].as<std::string>(),
-            std::to_string(args["port"].as<uint16_t>()));
+            std::to_string(args["port"].as<in_port_t>()));
     /* create request and send it to the server */
     std::string request = icy_request(args);
     if (write(tcp_fd, &request[0], request.length()) < 0) {

@@ -31,7 +31,7 @@ protected:
     virtual void parse_response_meta() = 0;
 
 public:
-    ICYResponse(int, std::vector<std::string>&, bool);
+    ICYResponse(int, std::vector<std::string>&, po::variables_map&);
 
     ICYResponse() = default;
 

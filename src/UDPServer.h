@@ -21,10 +21,8 @@ private:
     std::string local_dotted_address;
     in_port_t local_port;
     int timeout;
-    /* socket config */
+    /* socket */
     int sock{};
-    struct sockaddr_in local_address{};
-    struct ip_mreq ipMreq{};
     /* clients which is served is kept */
     std::vector<UDPClient> clients;
     /* buffer to communicate */

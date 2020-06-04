@@ -3,7 +3,7 @@
 
 UDPServer::UDPServer(po::variables_map &args) {
     this->args = args;
-    local_port = args["Port"].as<in_port_t>();
+    local_port = args["Port"].as<uint16_t>();
     local_dotted_address = args["address"].as<std::string>();
     this->timeout = args["timeoutclient"].as<int>();
 }
@@ -13,15 +13,17 @@ void UDPServer::connect() {
     if (sock < 0) {
         syserr("socket");
     }
-    ipMreq.imr_interface.s_addr = htonl(INADDR_ANY);
+    struct sockaddr_in local_address;
     if (!args["address"].defaulted()) {
+        struct ip_mreq ipMreq;
+        ipMreq.imr_interface.s_addr = htonl(INADDR_ANY);
         if (inet_aton(&local_dotted_address[0], &ipMreq.imr_multiaddr) == 0) {
             std::cerr << "ERROR: inet_aton - invalid multicast address" << std::endl;
             exit(1);
         }
-    }
-    if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (void *)&ipMreq, sizeof(ipMreq)) < 0) {
-        syserr("setsockopt");
+        if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (void *)&ipMreq, sizeof(ipMreq)) < 0) {
+            syserr("setsockopt add membership");
+        }
     }
     local_address.sin_family = AF_INET;
     local_address.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -70,6 +72,7 @@ void UDPServer::connect() {
 bool UDPServer::deliver_data(std::string &data, bool meta) {
     std::string response = data_response(data, meta);
     mutex.lock();
+    std::cerr << "START SEARCHING CLIENT" << std::endl;
     for (UDPClient &udpClient : clients) {
         if (!udpClient.is_banned()) {
             struct sockaddr_in sender = udpClient.get_addr();
@@ -79,7 +82,9 @@ bool UDPServer::deliver_data(std::string &data, bool meta) {
             }
         }
     }
+    std::cerr << "END SEARCHING CLIENT" << std::endl;
     mutex.unlock();
+    return true;
 }
 
 void UDPServer::update_client_time(UDPClient udpClient, bool discover) {

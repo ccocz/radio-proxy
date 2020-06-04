@@ -14,8 +14,8 @@ private:
 
     void parse_response_meta() override;
 public:
-    ClientResponse(int tcp_fd, std::vector<std::string> &headers, bool meta) :
-        ICYResponse(tcp_fd, headers, meta) {}
+    ClientResponse(int tcp_fd, std::vector<std::string> &headers, po::variables_map &args) :
+        ICYResponse(tcp_fd, headers, args) {}
     void send_response() override ;
 };
 

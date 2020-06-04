@@ -1,9 +1,10 @@
 #include "ICYResponse.h"
 
-ICYResponse::ICYResponse(int tcp_fd, std::vector<std::string> &headers, bool meta) {
+ICYResponse::ICYResponse(int tcp_fd, std::vector<std::string> &headers, po::variables_map &args) {
+    this->args = args;
     this->tcp_fd = tcp_fd;
     this->headers = headers;
-    this->meta = meta;
+    this->meta = args["meta"].as<std::string>() == "yes";
     metadata_interval = meta_interval();
 }
 
