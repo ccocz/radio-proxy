@@ -1,4 +1,3 @@
-#include <thread>
 #include "UDPServer.h"
 
 UDPServer::UDPServer(po::variables_map &args) {
@@ -13,9 +12,9 @@ void UDPServer::connect() {
     if (sock < 0) {
         syserr("socket");
     }
-    struct sockaddr_in local_address;
+    struct sockaddr_in local_address{};
     if (!args["address"].defaulted()) {
-        struct ip_mreq ipMreq;
+        struct ip_mreq ipMreq{};
         ipMreq.imr_interface.s_addr = htonl(INADDR_ANY);
         if (inet_aton(&local_dotted_address[0], &ipMreq.imr_multiaddr) == 0) {
             std::cerr << "ERROR: inet_aton - invalid multicast address" << std::endl;
@@ -36,11 +35,12 @@ void UDPServer::connect() {
 
 [[noreturn]] void UDPServer::update_clients() {
     /* wait for request from client */
-    struct sockaddr_in sender;
+    struct sockaddr_in sender{};
     socklen_t fromlen = sizeof(sender);
     buffer.resize(B_SIZE);
+    ssize_t rcv_len;
     while (true) {
-        ssize_t rcv_len = recvfrom(sock, &buffer, B_SIZE, 0, (struct sockaddr *) &sender, &fromlen);
+        rcv_len = recvfrom(sock, &buffer[0], B_SIZE, 0, (struct sockaddr *) &sender, &fromlen);
         if (rcv_len < 0) {
             syserr("recvfrom");
         }
@@ -49,22 +49,21 @@ void UDPServer::connect() {
         type = ntohs(type);
         mutex.lock();
         ban_clients();
-        if (type == 1) {
-            /* DISCOVER */
+        if (type == 1) { /* DISCOVER */
             /* update client time */
-            update_client_time(UDPClient(sender), 1);
+            update_client_time(UDPClient(sender), true);
             /* send IAM response back */
             std::string response = IAM_response();
             if (sendto(sock, &response[0], response.length(), 0, (struct sockaddr*)&sender,
                     sizeof(sender)) != (ssize_t)response.length()) {
                 syserr("sento");
             }
-        } else if (type == 3) {
-            /* KEEPALIVE */
-            update_client_time(UDPClient(sender), 0);
+        } else if (type == 3) { /* KEEPALIVE */
+            update_client_time(UDPClient(sender), false);
+        } else {
+            std::cerr << "UNKNOWN REQUEST" << std::endl;
         }
         mutex.unlock();
-
     }
 
 }
@@ -72,7 +71,7 @@ void UDPServer::connect() {
 bool UDPServer::deliver_data(std::string &data, bool meta) {
     std::string response = data_response(data, meta);
     mutex.lock();
-    std::cerr << "START SEARCHING CLIENT" << std::endl;
+    ban_clients();
     for (UDPClient &udpClient : clients) {
         if (!udpClient.is_banned()) {
             struct sockaddr_in sender = udpClient.get_addr();
@@ -82,7 +81,6 @@ bool UDPServer::deliver_data(std::string &data, bool meta) {
             }
         }
     }
-    std::cerr << "END SEARCHING CLIENT" << std::endl;
     mutex.unlock();
     return true;
 }
@@ -98,6 +96,8 @@ void UDPServer::update_client_time(UDPClient udpClient, bool discover) {
         }
     }
     if (discover) {
+        auto now = std::chrono::system_clock::now();
+        udpClient.set_last_request(std::chrono::system_clock::to_time_t(now));
         clients.push_back(udpClient);
     }
 }
@@ -106,17 +106,17 @@ std::string UDPServer::IAM_response() {
     std::string response;
     /* type */
     uint16_t type = htons(2);
-    /* length and the information about radio */
+    /* length of the information about radio and itself */
     uint16_t length = args["host"].as<std::string>().length() +
             args["resource"].as<std::string>().length();
     std::string info = args["host"].as<std::string>() + args["resource"].as<std::string>();
-    /* 4 bytes for header and the rest of info */
+    /* 4 bytes for header and the rest for the info */
     response.resize(4 + length);
     length = htons(length);
-    /* encrypt message to client */
+    /* assembly message to client */
     memcpy(&response[0], &type, sizeof(type));
     memcpy(&response[sizeof(type)], &length, sizeof(length));
-    memcpy(&response[sizeof(type) + sizeof(length)], &info, info.length());
+    memcpy(&response[sizeof(type) + sizeof(length)], &info[0], info.length());
     return response;
 }
 
@@ -135,22 +135,17 @@ void UDPServer::ban_clients() {
 
 std::string UDPServer::data_response(std::string &data, bool meta) {
     std::string response;
-    /* type */
+    /* type of the response*/
     uint16_t type;
-    if (!meta) {
-        type = htons(4);
-    } else {
-        type = htons(6);
-    }
-    /* length and the information about radio */
+    type = meta ? htons(6) : htons(4);
+    /* length of the data */
     uint16_t length = data.length();
-    /* 4 bytes for header and the rest for data */
+    /* 4 bytes for header and the rest for the data */
     response.resize(4 + length);
     length = htons(length);
-    /* encrypt message to client */
+    /* assembly message to client */
     memcpy(&response[0], &type, sizeof(type));
     memcpy(&response[sizeof(type)], &length, sizeof(length));
-    memcpy(&response[sizeof(type) + sizeof(length)], &data, data.length());
+    memcpy(&response[sizeof(type) + sizeof(length)], &data[0], data.length());
     return response;
-
 }

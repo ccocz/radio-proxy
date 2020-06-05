@@ -8,7 +8,7 @@ namespace po = boost::program_options;
 int tcp_fd;
 
 void signal_handler(int signum) {
-    std::cerr << "caught signal: " << signum << std::endl;
+    (void)signum;
     if (close(tcp_fd) == -1) {
         syserr("close");
     }

@@ -34,7 +34,7 @@ void ClientResponse::parse_response_meta() {
     /* response contains meta-data, needs to be parsed */
     int read_size;
     char ch;
-    meta_send = 0;
+    meta_send = false;
     while ((read_size = read(tcp_fd, &ch, 1))) {
         if (read_size < 0) {
             syserr("reading from tcp socket");
@@ -45,8 +45,10 @@ void ClientResponse::parse_response_meta() {
         if (byte_count == metadata_interval) {
             meta_data_block();
             byte_count = 0;
-            meta_send = 1;
-            break;
+            if (meta_data.length()) {
+                meta_send = true;
+                break;
+            }
         }
         /* buffer is full, head to sending to client */
         if ((int)data.length() >= BUF_SIZE) {
@@ -86,7 +88,6 @@ void ClientResponse::send_response() {
             udpServer.deliver_data(data, 0);
             data.clear();
         }
-        //todo: join
     } else {
         udpServer.connect();
         std::thread t(&UDPServer::update_clients, &udpServer);
@@ -96,8 +97,8 @@ void ClientResponse::send_response() {
             data.clear();
             if (meta_send) {
                 udpServer.deliver_data(meta_data, 1);
+                meta_data.clear();
             }
         }
-        //todo: join
     }
 }

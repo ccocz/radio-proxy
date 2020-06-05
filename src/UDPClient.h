@@ -7,21 +7,21 @@
 
 class UDPClient {
 private:
-    struct sockaddr_in address;
-    time_t last_request;
+    struct sockaddr_in address{};
+    time_t last_request{};
     bool banned;
 public:
-    UDPClient(sockaddr_in);
+    explicit UDPClient(sockaddr_in);
     void set_last_request(time_t);
-    bool is_equal(const UDPClient&);
-    bool is_banned() {
+    [[nodiscard]] bool is_equal(const UDPClient&) const;
+    [[nodiscard]] bool is_banned() const {
         return banned;
     }
-    time_t get_last_request() {
+    [[nodiscard]] time_t get_last_request() const {
         return last_request;
     }
     void ban() {
-        banned = 1;
+        banned = true;
     }
     sockaddr_in get_addr() {
         return address;

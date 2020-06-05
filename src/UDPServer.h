@@ -9,6 +9,8 @@
 #include <sys/socket.h>
 #include <iostream>
 #include <mutex>
+#include <thread>
+#include <poll.h>
 #include "err.h"
 #include "UDPClient.h"
 
@@ -28,12 +30,12 @@ private:
     /* buffer to communicate */
     static const int B_SIZE = 1500;
     std::string buffer;
-    /* mutex for exclusive access to clients */
+    /* mutex for exclusive access to clients list*/
     std::mutex mutex;
     void update_client_time(UDPClient udpClient, bool discover);
     /* response types */
     std::string IAM_response();
-    std::string data_response(std::string&, bool meta);
+    static std::string data_response(std::string&, bool meta);
     /* Ban clients who reached out their timeout */
     void ban_clients();
 
