@@ -5,7 +5,7 @@ void DirectResponse::meta_data_block() {
     int read_size;
     read_size = read(tcp_fd, &temp, 1);
     if (read_size < 0) {
-        syserr("reading from socket");
+        syserr("reading from tcp socket");
     } else if (read_size == 0) {
         std::cerr << "meta-data block size not found on socket" << std::endl;
         exit(1);
@@ -15,7 +15,7 @@ void DirectResponse::meta_data_block() {
     int metadata_length = temp * 16;
     while (byte_count != metadata_length && (read_size = read(tcp_fd, &ch, 1))) {
         if (read_size < 0) {
-            syserr("reading from the socket");
+            syserr("reading from the tcp socket");
         }
         std::cerr << ch;
         byte_count++;
@@ -31,7 +31,7 @@ void DirectResponse::parse_raw_response() {
     char ch;
     while ((read_size = read(tcp_fd, &ch, 1))) {
         if (read_size < 0) {
-            syserr("reading from socket");
+            syserr("reading from tcp socket");
         }
         std::cout << ch;
     }

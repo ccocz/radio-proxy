@@ -13,11 +13,11 @@ private:
 public:
     explicit UDPClient(sockaddr_in);
     void set_last_request(time_t);
-    [[nodiscard]] bool is_equal(const UDPClient&) const;
-    [[nodiscard]] bool is_banned() const {
+    bool is_equal(const UDPClient&) const;
+    bool is_banned() const {
         return banned;
     }
-    [[nodiscard]] time_t get_last_request() const {
+    time_t get_last_request() const {
         return last_request;
     }
     void ban() {

@@ -42,7 +42,7 @@ private:
 public:
     explicit UDPServer(po::variables_map&);
     void connect();
-    bool deliver_data(std::string&, bool meta);
+    void deliver_data(std::string&, bool meta);
 
     [[noreturn]] void update_clients();
 };

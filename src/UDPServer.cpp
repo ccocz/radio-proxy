@@ -10,7 +10,7 @@ UDPServer::UDPServer(po::variables_map &args) {
 void UDPServer::connect() {
     sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
-        syserr("socket");
+        syserr("udp socket");
     }
     struct sockaddr_in local_address{};
     if (!args["address"].defaulted()) {
@@ -28,9 +28,8 @@ void UDPServer::connect() {
     local_address.sin_addr.s_addr = htonl(INADDR_ANY);
     local_address.sin_port = htons(local_port);
     if (bind(sock, (struct sockaddr*)&local_address, sizeof(local_address)) < 0) {
-        syserr("bind");
+        syserr("udp socket bind");
     }
-    // close and drop membership
 }
 
 [[noreturn]] void UDPServer::update_clients() {
@@ -40,35 +39,45 @@ void UDPServer::connect() {
     buffer.resize(B_SIZE);
     ssize_t rcv_len;
     while (true) {
-        rcv_len = recvfrom(sock, &buffer[0], B_SIZE, 0, (struct sockaddr *) &sender, &fromlen);
-        if (rcv_len < 0) {
-            syserr("recvfrom");
+        ssize_t total = 0;
+        /* wait until enough data is present on the socket */
+        while (total < 4) {
+            rcv_len = recvfrom(sock, &buffer[total], B_SIZE - total, 0,
+                    (struct sockaddr *) &sender, &fromlen);
+            if (rcv_len < 0) {
+                syserr("recvfrom udp");
+            }
+            total += rcv_len;
         }
+        /* convert type and length to host byte order */
         uint16_t type;
+        uint16_t length;
         memcpy(&type, &buffer[0], 2);
+        memcpy(&length, &buffer[2], 2);
         type = ntohs(type);
+        length = ntohs(length);
         mutex.lock();
+        /* before updating times, check if someone already should banned */
         ban_clients();
-        if (type == 1) { /* DISCOVER */
+        if (type == 1 && !length) { /* DISCOVER */
             /* update client time */
             update_client_time(UDPClient(sender), true);
             /* send IAM response back */
             std::string response = IAM_response();
-            if (sendto(sock, &response[0], response.length(), 0, (struct sockaddr*)&sender,
-                    sizeof(sender)) != (ssize_t)response.length()) {
-                syserr("sento");
+            if (sendto(sock, &response[0], response.length(), 0,
+                    (struct sockaddr*)&sender, sizeof(sender)) != (ssize_t)response.length()) {
+                syserr("sento udp iam");
             }
-        } else if (type == 3) { /* KEEPALIVE */
+        } else if (type == 3 && !length) { /* KEEPALIVE */
             update_client_time(UDPClient(sender), false);
         } else {
             std::cerr << "UNKNOWN REQUEST" << std::endl;
         }
         mutex.unlock();
     }
-
 }
 
-bool UDPServer::deliver_data(std::string &data, bool meta) {
+void UDPServer::deliver_data(std::string &data, bool meta) {
     std::string response = data_response(data, meta);
     mutex.lock();
     ban_clients();
@@ -82,7 +91,6 @@ bool UDPServer::deliver_data(std::string &data, bool meta) {
         }
     }
     mutex.unlock();
-    return true;
 }
 
 void UDPServer::update_client_time(UDPClient udpClient, bool discover) {

@@ -8,7 +8,7 @@ void ClientResponse::meta_data_block() {
     int read_size;
     read_size = read(tcp_fd, &temp, 1);
     if (read_size < 0) {
-        syserr("reading from socket");
+        syserr("reading from tcp socket");
     } else if (read_size == 0) {
         std::cerr << "meta-data block size not found on socket" << std::endl;
         exit(1);
@@ -19,7 +19,7 @@ void ClientResponse::meta_data_block() {
     int metadata_length = temp * 16;
     while (byte_cnt != metadata_length && (read_size = read(tcp_fd, &ch, 1))) {
         if (read_size < 0) {
-            syserr("reading from the socket");
+            syserr("reading from the tcp socket");
         }
         meta_data += ch;
         byte_cnt++;
@@ -37,7 +37,7 @@ void ClientResponse::parse_response_meta() {
     meta_send = false;
     while ((read_size = read(tcp_fd, &ch, 1))) {
         if (read_size < 0) {
-            syserr("reading from tcp socket");
+            syserr("reading from the tcp socket");
         }
         data += ch;
         byte_count++;
@@ -63,7 +63,7 @@ void ClientResponse::parse_raw_response() {
     char ch;
     while ((read_size = read(tcp_fd, &ch, 1))) {
         if (read_size < 0) {
-            syserr("reading from socket");
+            syserr("reading from tcp socket");
         }
         data += ch;
         if ((int)data.length() >= BUF_SIZE) {

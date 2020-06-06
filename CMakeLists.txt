@@ -11,6 +11,5 @@ find_package(Boost COMPONENTS program_options REQUIRED)
 find_package (Threads)
 include_directories(${Boost_INCLUDE_DIRS})
 
-add_executable(radio-proxy src/radio-proxy.cpp src/err.cpp src/err.h src/radio-proxy.h src/ICYResponse.cpp src/ICYResponse.h src/DirectResponse.cpp src/DirectResponse.h src/ClientResponse.cpp src/ClientResponse.h src/UDPServer.cpp src/UDPServer.h src/UDPClient.cpp src/UDPClient.h src/test_proxy.cpp)
-add_executable(test-proxy src/test_proxy.cpp)
+add_executable(radio-proxy src/radio-proxy.cpp src/err.cpp src/err.h src/radio-proxy.h src/ICYResponse.cpp src/ICYResponse.h src/DirectResponse.cpp src/DirectResponse.h src/ClientResponse.cpp src/ClientResponse.h src/UDPServer.cpp src/UDPServer.h src/UDPClient.cpp src/UDPClient.h)
 target_link_libraries(radio-proxy ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})

@@ -10,9 +10,9 @@ int tcp_fd;
 void signal_handler(int signum) {
     (void)signum;
     if (close(tcp_fd) == -1) {
-        syserr("close");
+        syserr("tcp socket close");
     }
-    exit(1);
+    exit(0);
 }
 
 po::variables_map validate_args(int argc, char **argv) {
@@ -59,11 +59,11 @@ int initialize_tcp(std::string host, std::string port) {
     /* initialize socket according to getaddrinfo results */
     sock = socket(addr_result->ai_family, addr_result->ai_socktype, addr_result->ai_protocol);
     if (sock < 0) {
-        syserr("socket");
+        syserr("tcp socket");
     }
     /* connect socket to the server */
     if (connect(sock, addr_result->ai_addr, addr_result->ai_addrlen) < 0) {
-        syserr("connect");
+        syserr("tcp socket connect");
     }
     freeaddrinfo(addr_result);
     return sock;
@@ -163,13 +163,14 @@ int main(int argc, char **argv) {
     /* create request and send it to the server */
     std::string request = icy_request(args);
     if (write(tcp_fd, &request[0], request.length()) < 0) {
-        syserr("writing to socket");
+        syserr("writing to tcp socket");
     }
     /* set timeout to read from socket */
     struct timeval tv{};
     tv.tv_sec = args["timeout"].as<int>();
+    tv.tv_usec = 0;
     if (setsockopt(tcp_fd, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *)&tv, sizeof(struct timeval)) < 0) {
-        syserr("timeout option socket");
+        syserr("timeout option tcp socket");
     }
     /* proceed to getting response */
     wait_response(args);
